@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: broken-sidecar-deployment
+  labels:
+    app: broken-sidecar
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: broken-sidecar
+  template:
+    metadata:
+      labels:
+        app: broken-sidecar
+    spec:
+      containers:
+      # Main application container (working)
+      - name: nginx
+        image: nginx:1.21
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: shared-logs
+          mountPath: /var/log/nginx
+      
+      # Sidecar container with incorrect image (broken)
+      - name: log-collector
+        image: fluent/fluent-bit:latest-wrong-tag  # Incorrect tag
+        args:
+        - /fluent-bit/bin/fluent-bit
+        - --config=/fluent-bit/etc/fluent-bit.conf
+        volumeMounts:
+        - name: shared-logs
+          mountPath: /var/log/nginx
+          readOnly: true
+        - name: fluent-bit-config
+          mountPath: /fluent-bit/etc
+      
+      # Another sidecar with wrong image name (broken)
+      - name: metrics-exporter
+        image: prom/node-exporterRR:latest  # Typo in image name
+        ports:
+        - containerPort: 9100
+        args:
+        - --path.rootfs=/host
+        volumeMounts:
+        - name: proc
+          mountPath: /host/proc
+          readOnly: true
+        - name: sys
+          mountPath: /host/sys
+          readOnly: true
+      
+      volumes:
+      - name: shared-logs
+        emptyDir: {}
+      - name: fluent-bit-config
+        configMap:
+          name: fluent-bit-config
+          defaultMode: 0644
+      - name: proc
+        hostPath:
+          path: /proc
+      - name: sys
+        hostPath:
+          path: /sys
+
+---
+# ConfigMap for fluent-bit (optional, for completeness)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-config
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush         1
+        Log_Level     info
+        Daemon        off
+    
+    [INPUT]
+        Name              tail
+        Path              /var/log/nginx/*.log
+        Tag               nginx
+    
+    [OUTPUT]
+        Name              stdout
+        Match             *

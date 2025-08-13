@@ -1,0 +1,133 @@
+# StatefulSet with excessive resource requests (BROKEN)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: database-cluster
+  labels:
+    app: database-cluster
+spec:
+  serviceName: database-service
+  replicas: 3
+  selector:
+    matchLabels:
+      app: database-cluster
+  template:
+    metadata:
+      labels:
+        app: database-cluster
+    spec:
+      containers:
+      # Main database container (reasonable resources)
+      - name: postgres
+        image: postgres:13
+        ports:
+        - containerPort: 5432
+          name: postgres
+        env:
+        - name: POSTGRES_DB
+          value: "myapp"
+        - name: POSTGRES_USER
+          value: "myuser"
+        - name: POSTGRES_PASSWORD
+          value: "mypassword"
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+      
+      # Sidecar container with EXCESSIVE resource requests (BROKEN)
+      - name: monitoring-agent
+        image: prom/node-exporter:latest
+        ports:
+        - containerPort: 9100
+          name: metrics
+        resources:
+          requests:
+            memory: "64Gi"      # EXCESSIVE - 64GB memory request
+            cpu: "32000m"       # EXCESSIVE - 32 CPU cores request
+          limits:
+            memory: "128Gi"     # EXCESSIVE - 128GB memory limit
+            cpu: "64000m"       # EXCESSIVE - 64 CPU cores limit
+      
+      # Another sidecar with unrealistic requests
+      - name: log-shipper
+        image: fluent/fluent-bit:latest
+        args:
+        - /fluent-bit/bin/fluent-bit
+        - --config=/fluent-bit/etc/fluent-bit.conf
+        volumeMounts:
+        - name: postgres-logs
+          mountPath: /var/log/postgresql
+        - name: fluent-config
+          mountPath: /fluent-bit/etc
+        resources:
+          requests:
+            memory: "16Gi"      # EXCESSIVE for log shipper
+            cpu: "8000m"        # EXCESSIVE - 8 CPU cores
+          limits:
+            memory: "32Gi"
+            cpu: "16000m"
+      
+      volumes:
+      - name: postgres-logs
+        emptyDir: {}
+      - name: fluent-config
+        configMap:
+          name: fluent-config
+  
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 10Gi
+
+---
+# Service for StatefulSet
+apiVersion: v1
+kind: Service
+metadata:
+  name: database-service
+  labels:
+    app: database-cluster
+spec:
+  clusterIP: None  # Headless service for StatefulSet
+  selector:
+    app: database-cluster
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: 5432
+  - name: metrics
+    port: 9100
+    targetPort: 9100
+
+---
+# ConfigMap for log shipper
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-config
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush         1
+        Log_Level     info
+        Daemon        off
+    
+    [INPUT]
+        Name              tail
+        Path              /var/log/postgresql/*.log
+        Tag               postgres
+    
+    [OUTPUT]
+        Name              stdout
+        Match             *

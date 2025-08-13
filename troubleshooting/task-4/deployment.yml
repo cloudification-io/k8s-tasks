@@ -1,0 +1,84 @@
+---
+# PVC with non-existent StorageClass (BROKEN)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-data-pvc
+  labels:
+    app: data-app
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: super-fast-ssd-storage  # This StorageClass doesn't exist
+  
+---
+# Pod that tries to use the broken PVC
+apiVersion: v1
+kind: Pod
+metadata:
+  name: data-app-pod
+  labels:
+    app: data-app
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.21
+    ports:
+    - containerPort: 80
+    volumeMounts:
+    - name: data-volume
+      mountPath: /usr/share/nginx/html/data
+    - name: logs-volume
+      mountPath: /var/log/nginx
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "250m"
+      limits:
+        memory: "256Mi"
+        cpu: "500m"
+  
+  # Init container to create some test data
+  initContainers:
+  - name: data-init
+    image: busybox
+    command: ['sh', '-c']
+    args:
+    - |
+      echo "Initializing data directory..."
+      echo "<h1>Welcome to Data App</h1>" > /data/index.html
+      echo "<p>Data initialized at $(date)</p>" >> /data/index.html
+      echo "Data initialization complete"
+    volumeMounts:
+    - name: data-volume
+      mountPath: /data
+  
+  volumes:
+  - name: data-volume
+    persistentVolumeClaim:
+      claimName: app-data-pvc  # References the broken PVC
+  - name: logs-volume
+    emptyDir: {}
+  
+  restartPolicy: Always
+
+---
+# Service to expose the pod (for completeness)
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-app-service
+  labels:
+    app: data-app
+spec:
+  selector:
+    app: data-app
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+    targetPort: 80
+  type: ClusterIP

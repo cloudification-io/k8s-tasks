@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: curl-client
+  labels:
+    app: curl-client
+    component: client
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: curl-client
+      component: client
+  template:
+    metadata:
+      labels:
+        app: curl-client
+        component: client
+    spec:
+      containers:
+      - name: curl
+        image: curlimages/curl
+        command: ["/bin/sh"]
+        args:
+        - -c
+        - |
+          echo "Starting curl client..."
+          while true; do
+            echo "=== $(date) ==="
+            echo "Testing connection to nginx-service..."
+            
+            # Test service resolution
+            nslookup workshop-nginx-service || echo "DNS resolution failed"
+            
+            # Test HTTP connection
+            curl -v --connect-timeout 5 --max-time 10 http://workshop-nginx-service:80/ || echo "HTTP connection failed"
+            
+            echo "Sleeping for 30 seconds..."
+            sleep 30
+          done
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "100m"
+          limits:
+            memory: "64Mi"
+            cpu: "200m"
+        volumeMounts:
+        - name: curl-config
+          mountPath: /etc/curl
+      volumes:
+      - name: curl-config
+        configMap:
+          name: curl-config

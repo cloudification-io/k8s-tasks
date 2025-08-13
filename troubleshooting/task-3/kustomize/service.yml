@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+  labels:
+    app: nginx-service
+spec:
+  selector:
+    app: nginx-web          # WRONG LABEL - doesn't match deployment
+    component: frontend     # WRONG LABEL - doesn't match deployment
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+    targetPort: 80
+  type: ClusterIP

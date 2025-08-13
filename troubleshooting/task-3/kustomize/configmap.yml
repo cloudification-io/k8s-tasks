@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: curl-config
+  labels:
+    app: curl-client
+data:
+  curl.conf: |
+    # Curl configuration
+    connect-timeout = 10
+    max-time = 30
+    user-agent = "Workshop-Curl-Client/1.0"
+  
+  test-endpoints.txt: |
+    http://workshop-nginx-service:80/
+    http://workshop-nginx-service.workshop-troubleshoot.svc.cluster.local:80/

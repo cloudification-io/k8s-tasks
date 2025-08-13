@@ -1,0 +1,97 @@
+# StatefulSet with incorrect node affinity (BROKEN)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: gpu-workload
+  labels:
+    app: gpu-workload
+spec:
+  serviceName: gpu-service
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gpu-workload
+  template:
+    metadata:
+      labels:
+        app: gpu-workload
+    spec:
+      nodeSelector:
+        gpu-type: "nvidia-v100"
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - distributed-app
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - name: main-app
+        image: busybox
+        command: ["/bin/sh"]
+        args:
+        - -c
+        - |
+          echo "Starting special workload..."
+          echo "Node: $(hostname)"
+          while true; do
+            echo "$(date): Special workload running..."
+            sleep 60
+          done
+        volumeMounts:
+        - name: gpu-data
+          mountPath: /data
+      # Sidecar container for monitoring
+      - name: monitor
+        image: prom/node-exporter:latest
+        ports:
+        - containerPort: 9100      
+      volumes:
+      - name: gpu-data
+        emptyDir: {}      
+      # Additional constraints that make scheduling harder
+      tolerations:
+      - key: "gpu-node"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+---
+# Service for StatefulSet
+apiVersion: v1
+kind: Service
+metadata:
+  name: gpu-service
+  labels:
+    app: gpu-workload
+spec:
+  clusterIP: None  # Headless service
+  selector:
+    app: gpu-workload
+  ports:
+  - name: monitor
+    port: 9100
+    targetPort: 9100
+
+---
+# Alternative pod with nodeSelector (also broken)
+apiVersion: v1
+kind: Pod
+metadata:
+  name: single-gpu-pod
+  labels:
+    app: single-gpu-app
+spec:
+  nodeSelector:
+    gpu-type: "amd-gpu"     # WRONG label key
+  containers:
+  - name: special-task
+    image: busybox
+    command: ["sleep", "3600"]
+  tolerations:
+  - key: "gpu-workload"  # WRONG toleration key
+    operator: "Equal"
+    value: "true"
+    effect: "NoSchedule"

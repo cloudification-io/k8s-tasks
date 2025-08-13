@@ -1,15 +1,12 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Target namespace for all resources
-namespace: workshop-troubleshoot
-
 # Resources to include
 resources:
-  - nginx-deployment.yaml
-  - nginx-service.yaml
-  - curl-deployment.yaml
-  - configmap.yaml
+  - deployment.yml
+  - service.yml
+  - curl.yml
+  - configmap.yml
 
 # Common labels applied to all resources
 commonLabels:

@@ -18,7 +18,7 @@
 Apply objects via Kustmomize
 
 ```bash
-kustomize build . | kubectl apply -f -
+kustomize build ./kustomize | kubectl apply -f -
 ```
 
 Useful debug commands

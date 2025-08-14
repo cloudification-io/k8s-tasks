@@ -6,7 +6,6 @@
   - [Contents](#contents)
   - [Assignment](#assignment)
   - [Example commands](#example-commands)
-  - [Cleanup resources](#cleanup-resources)
   - [Links](#links)
 
 ## Assignment
@@ -82,12 +81,6 @@ kubectl auth can-i create pods
 
 ## Extra
 kubectl auth can-i --list
-```
-
-## Cleanup resources
-
-```bash
-kubectl delete pod nginx-pod
 ```
 
 ## Links

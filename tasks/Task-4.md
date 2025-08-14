@@ -22,7 +22,7 @@ Crete Nginx deployment just like in previous task
 Create Service for Nginx Deployment
 
 ```bash
-kubectl expose deployment nginx-lb-deployment --port=80 --target-port=80 --type=LoadBalancer
+kubectl expose deployment nginx-deployment --port=80 --target-port=80 --type=LoadBalancer
 ```
 
 Check Service just like in previous task
